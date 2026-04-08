@@ -99,6 +99,7 @@ const ChartTooltipContent = React.forwardRef<
     hideIndicator?: boolean;
     indicator?: "line" | "dot" | "dashed";
     nameKey?: string;
+    labelClassName?: string;
     labelKey?: string;
     labelFormatter?: (label: any, payload: Array<Record<string, any>>) => React.ReactNode;
     formatter?: (value: any, name: string, item: Record<string, any>, index: number, payload: Array<Record<string, any>>) => React.ReactNode;
