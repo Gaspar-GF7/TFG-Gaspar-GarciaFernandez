@@ -171,5 +171,25 @@ export const api = {
       const raw = await request<CuentaMovimientoRaw[]>('/cuentas/proveedores');
       return raw.map(toProveedorMovimiento);
     },
+    postCliente: (body: {
+      cliente_id: number;
+      tipo: 'factura' | 'pago';
+      monto: number;
+      vencimiento?: string;
+      observacion?: string;
+    }) => request<CuentaMovimientoRaw>('/cuentas/clientes', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    postProveedor: (body: {
+      proveedor_id: number;
+      tipo: 'factura' | 'pago';
+      monto: number;
+      vencimiento?: string;
+      observacion?: string;
+    }) => request<CuentaMovimientoRaw>('/cuentas/proveedores', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   },
 };

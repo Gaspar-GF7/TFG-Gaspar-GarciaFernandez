@@ -46,44 +46,50 @@ function SkeletonCard() {
 }
 
 const Reportes = () => {
-  const { user } = useAuth();
-  const navigate  = useNavigate();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
 
+  // Redirigir si no es administrador — combinamos guard sincrónico + toast en efecto
   useEffect(() => {
-    if (user && user.rol !== 'administrador') {
+    if (!loading && user && user.rol !== 'administrador') {
       toast.error("No tenés permiso para acceder a Reportes");
-      navigate("/");
+      navigate("/", { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
+
+  // Guard sincrónico: evita que el contenido se pinte ni un frame para no-admins
+  if (loading || !user || user.rol !== 'administrador') return null;
+
+  return <ReportesContent />;
+};
+
+function ReportesContent() {
+  const hoy = new Date();
 
   const { data: ventas = [], isLoading: loadV, isError: errV } = useQuery({
     queryKey: ['ventas'],
     queryFn: () => api.ventas.getAll(),
-    enabled: user?.rol === 'administrador',
   });
 
   const { data: movimientos = [], isLoading: loadM, isError: errM } = useQuery({
     queryKey: ['movimientos'],
     queryFn: () => api.movimientos.getAll(),
-    enabled: user?.rol === 'administrador',
   });
 
   const { data: cuentasClientes = [], isLoading: loadC, isError: errC } = useQuery({
     queryKey: ['cuentas-clientes'],
     queryFn: () => api.cuentas.getClientes(),
-    enabled: user?.rol === 'administrador',
   });
 
   const { data: inventario = [], isLoading: loadI } = useQuery({
     queryKey: ['inventario'],
     queryFn: () => api.inventario.getAll(),
-    enabled: user?.rol === 'administrador',
   });
 
   const isLoading = loadV || loadM || loadC || loadI;
   const isError   = errV || errM || errC;
-  const hoy       = new Date();
 
+  // ── 1. Aging de cuentas por cobrar ──────────────────────────────────────────
   const aging = (() => {
     const grupos = { alDia: 0, vencePronto: 0, vencido: 0, vencidoGrave: 0 };
     cuentasClientes.forEach((m) => {
@@ -104,14 +110,16 @@ const Reportes = () => {
     { label: "Vencido +60d",  monto: aging.vencidoGrave },
   ];
 
-  const cuentasConVenc   = cuentasClientes.filter((m) => m.vencimiento);
-  const cuentasVencidas  = cuentasConVenc.filter(
+  // ── 2. Riesgo de mora ────────────────────────────────────────────────────────
+  const cuentasConVenc  = cuentasClientes.filter((m) => m.vencimiento);
+  const cuentasVencidas = cuentasConVenc.filter(
     (m) => m.vencimiento && new Date(m.vencimiento) < hoy && Number(m.saldo_actual) > 0
   );
   const riesgoMora = cuentasConVenc.length > 0
     ? Math.round((cuentasVencidas.length / cuentasConVenc.length) * 100)
     : 0;
 
+  // ── 3. Concentración por cliente ─────────────────────────────────────────────
   const saldoPorCliente = cuentasClientes.reduce<Record<string, { nombre: string; saldo: number }>>((acc, m) => {
     const key = String(m.entidad_id);
     if (!acc[key]) acc[key] = { nombre: m.entidad_nombre, saldo: 0 };
@@ -132,6 +140,7 @@ const Reportes = () => {
 
   const top3Pct = concentracion.slice(0, 3).reduce((s, c) => s + c.pct, 0);
 
+  // ── 4. Rotación de inventario (últimos 30 días) ───────────────────────────────
   const hace30 = new Date(hoy); hace30.setDate(hoy.getDate() - 30);
   const salidasRecientes = movimientos
     .filter((m) => m.tipo === 'salida' && new Date(m.fecha) >= hace30)
@@ -143,6 +152,7 @@ const Reportes = () => {
 
   const rotacion = stockPromedio > 0 ? (salidasRecientes / stockPromedio).toFixed(2) : "—";
 
+  // ── Ventas por mes (últimos 4 meses) ─────────────────────────────────────────
   const ventasPorMes = (() => {
     const meses: Record<string, number> = {};
     ventas.forEach((v) => {
@@ -157,6 +167,9 @@ const Reportes = () => {
         total,
       }));
   })();
+
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 
   return (
     <AppLayout>
@@ -288,6 +301,6 @@ const Reportes = () => {
       </div>
     </AppLayout>
   );
-};
+}
 
 export default Reportes;
