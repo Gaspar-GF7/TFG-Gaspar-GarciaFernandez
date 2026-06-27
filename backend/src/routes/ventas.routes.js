@@ -1,7 +1,8 @@
-const router = require('express').Router();
-const pool   = require('../config/db');
-const auth   = require('../middleware/auth');
-const roles  = require('../middleware/roles');
+const router    = require('express').Router();
+const pool      = require('../config/db');
+const auth      = require('../middleware/auth');
+const roles     = require('../middleware/roles');
+const { getIo } = require('../socket');
 
 const todosRoles = [auth, roles('administrador', 'operador')];
 
@@ -157,6 +158,15 @@ router.post('/', ...todosRoles, async (req, res) => {
 
     await client.query('COMMIT');
     res.status(201).json({ ...venta, detalles });
+    getIo()?.emit('venta:nueva', {
+      id: venta.id,
+      total_monto: venta.total_monto,
+      fecha: venta.fecha,
+      items_actualizados: itemsConStock.map((it) => ({
+        item_id: Number(it.item_id),
+        stock_actual: it.stockDisponible - it.cant,
+      })),
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);

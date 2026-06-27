@@ -1,9 +1,10 @@
 import { Package, AlertTriangle, AlertCircle, Search, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { api, calcEstado } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSocket } from "@/hooks/useSocket";
 
 const estadoBadge = {
   ok:      "bg-success/10 text-success",
@@ -26,8 +27,14 @@ function SkeletonRow() {
 }
 
 const Stock = () => {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "bajo" | "critico">("todos");
+
+  useSocket({
+    'stock:actualizado': () => queryClient.invalidateQueries({ queryKey: ['inventario'] }),
+    'venta:nueva':       () => queryClient.invalidateQueries({ queryKey: ['inventario'] }),
+  });
 
   const { data: rawItems = [], isLoading, isError, error } = useQuery({
     queryKey: ['inventario'],

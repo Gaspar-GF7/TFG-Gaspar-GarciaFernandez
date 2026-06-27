@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, User } from '@/lib/api';
+import { disconnectSocket } from '@/hooks/useSocket';
 
 interface AuthContextType {
   user: User | null;
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     localStorage.removeItem('token');
     setUser(null);
+    disconnectSocket();
   }
 
   return (

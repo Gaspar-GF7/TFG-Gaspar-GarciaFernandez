@@ -1,9 +1,10 @@
 import { DollarSign, ShoppingCart, Package, AlertTriangle, XCircle } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { KpiCard } from "@/components/KpiCard";
 import { api, calcEstado } from "@/lib/api";
+import { useSocket } from "@/hooks/useSocket";
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -21,6 +22,20 @@ function KpiSkeleton() {
 }
 
 const Dashboard = () => {
+  const queryClient = useQueryClient();
+
+  useSocket({
+    'venta:nueva': () => {
+      queryClient.invalidateQueries({ queryKey: ['ventas'] });
+      queryClient.invalidateQueries({ queryKey: ['inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos'] });
+    },
+    'stock:actualizado': () => {
+      queryClient.invalidateQueries({ queryKey: ['inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos'] });
+    },
+  });
+
   const { data: ventas = [], isLoading: loadVentas, isError: errVentas } = useQuery({
     queryKey: ['ventas'],
     queryFn: () => api.ventas.getAll(),

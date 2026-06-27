@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       '/api': 'http://localhost:3000',
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

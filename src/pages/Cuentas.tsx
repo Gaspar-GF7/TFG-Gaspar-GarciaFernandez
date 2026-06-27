@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { api, CuentaMovimiento } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { useSocket } from "@/hooks/useSocket";
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -37,6 +38,15 @@ interface CuentaTabProps {
 
 function CuentaTab({ movimientos, isLoading, isError, tipo, puedeRegistrar }: CuentaTabProps) {
   const queryClient = useQueryClient();
+
+  useSocket({
+    'cuenta:actualizada': (data: unknown) => {
+      const { tipo } = data as { tipo: string };
+      queryClient.invalidateQueries({
+        queryKey: [tipo === 'cliente' ? 'cuentas-clientes' : 'cuentas-proveedores'],
+      });
+    },
+  });
 
   const entidades = Array.from(
     new Map(movimientos.map((m) => [m.entidad_id, m.entidad_nombre])).entries()

@@ -1,7 +1,8 @@
-const router = require('express').Router();
-const pool   = require('../config/db');
-const auth   = require('../middleware/auth');
-const roles  = require('../middleware/roles');
+const router    = require('express').Router();
+const pool      = require('../config/db');
+const auth      = require('../middleware/auth');
+const roles     = require('../middleware/roles');
+const { getIo } = require('../socket');
 
 const todosRoles = [auth, roles('administrador', 'operador')];
 const soloAdmin  = [auth, roles('administrador')];
@@ -91,6 +92,12 @@ router.post('/clientes', ...soloAdmin, async (req, res) => {
 
     await client.query('COMMIT');
     res.status(201).json(rows[0]);
+    getIo()?.emit('cuenta:actualizada', {
+      tipo: 'cliente',
+      id: rows[0].id,
+      cliente_id: Number(cliente_id),
+      saldo_actual: saldoNuevo,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
@@ -184,6 +191,12 @@ router.post('/proveedores', ...soloAdmin, async (req, res) => {
 
     await client.query('COMMIT');
     res.status(201).json(rows[0]);
+    getIo()?.emit('cuenta:actualizada', {
+      tipo: 'proveedor',
+      id: rows[0].id,
+      proveedor_id: Number(proveedor_id),
+      saldo_actual: saldoNuevo,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
