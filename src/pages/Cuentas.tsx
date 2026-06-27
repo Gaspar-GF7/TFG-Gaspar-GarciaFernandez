@@ -1,182 +1,226 @@
-import { useMemo, useState } from "react";
-import { Wallet, TrendingDown, AlertCircle, Search, ArrowLeft } from "lucide-react";
+﻿import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { PlusCircle, XCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-import { KpiCard } from "@/components/KpiCard";
-import { cuentas, calcularSaldo, estaVencida, Cuenta } from "@/data/accountsData";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { api, CuentaMovimiento } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-const fmt = (n: number) =>
+const formatCurrency = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 
-const TODAY = new Date("2026-06-27");
+const formatDate = (s: string) =>
+  new Date(s).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+
+function SkeletonRow() {
+  return (
+    <tr className="border-b">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <td key={i} className="px-5 py-3">
+          <div className="h-4 rounded bg-muted animate-pulse" />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+interface CuentaTabProps {
+  movimientos: CuentaMovimiento[];
+  isLoading: boolean;
+  isError: boolean;
+  tipo: "cliente" | "proveedor";
+  puedeRegistrar: boolean;
+}
+
+function CuentaTab({ movimientos, isLoading, isError, tipo, puedeRegistrar }: CuentaTabProps) {
+  const entidades = Array.from(
+    new Map(movimientos.map((m) => [m.entidad_id, m.entidad_nombre])).entries()
+  ).map(([id, nombre]) => ({ id, nombre }));
+
+  const [entidadId, setEntidadId] = useState<number | null>(null);
+  const selectedId = entidadId ?? (entidades[0]?.id ?? null);
+
+  const movsFiltrados = movimientos
+    .filter((m) => m.entidad_id === selectedId)
+    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+  const saldoActual = movsFiltrados[0]?.saldo_actual ?? 0;
+
+  return (
+    <div className="space-y-5">
+      {isError && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <XCircle className="h-5 w-5 text-destructive shrink-0" />
+          <p className="text-sm text-destructive">Error al cargar cuentas corrientes</p>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-4">
+        <select
+          value={selectedId ?? ""}
+          onChange={(e) => setEntidadId(Number(e.target.value))}
+          className="rounded-lg border bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 min-w-[220px]"
+          disabled={isLoading || entidades.length === 0}
+        >
+          {entidades.map((e) => (
+            <option key={e.id} value={e.id}>{e.nombre}</option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-4">
+          {selectedId && !isLoading && (
+            <div className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold",
+              saldoActual > 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
+            )}>
+              {saldoActual > 0
+                ? <TrendingUp className="h-4 w-4" />
+                : <TrendingDown className="h-4 w-4" />}
+              Saldo: {formatCurrency(Number(saldoActual))}
+            </div>
+          )}
+
+          {puedeRegistrar ? (
+            <button
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              onClick={() => alert("Formulario de registro (próximamente)")}
+            >
+              <PlusCircle className="h-4 w-4" />
+              Registrar movimiento
+            </button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <button
+                    disabled
+                    className="flex items-center gap-2 rounded-lg bg-primary/40 px-4 py-2 text-sm font-medium text-primary-foreground cursor-not-allowed opacity-50"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Registrar movimiento
+                  </button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Solo administradores pueden registrar movimientos
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left px-5 py-3 font-semibold text-muted-foreground">Fecha</th>
+              <th className="text-left px-5 py-3 font-semibold text-muted-foreground">Concepto</th>
+              <th className="text-right px-5 py-3 font-semibold text-muted-foreground">
+                {tipo === "cliente" ? "Debe (factura)" : "Debe (pago)"}
+              </th>
+              <th className="text-right px-5 py-3 font-semibold text-muted-foreground">
+                {tipo === "cliente" ? "Haber (pago)" : "Haber (factura)"}
+              </th>
+              <th className="text-right px-5 py-3 font-semibold text-muted-foreground">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
+              : movsFiltrados.length === 0
+                ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
+                      Sin movimientos para {tipo === "cliente" ? "este cliente" : "este proveedor"}
+                    </td>
+                  </tr>
+                )
+                : movsFiltrados.map((m) => (
+                  <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3 text-muted-foreground">{formatDate(m.fecha)}</td>
+                    <td className="px-5 py-3 text-card-foreground">
+                      <div>{m.tipo === "factura" ? "Factura" : "Pago"}</div>
+                      {m.observacion && (
+                        <div className="text-xs text-muted-foreground">{m.observacion}</div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono">
+                      {m.debe > 0 ? (
+                        <span className="text-destructive">{formatCurrency(m.debe)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono">
+                      {m.haber > 0 ? (
+                        <span className="text-success">{formatCurrency(m.haber)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono font-semibold text-card-foreground">
+                      {formatCurrency(Number(m.saldo_actual))}
+                    </td>
+                  </tr>
+                ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const Cuentas = () => {
-  const [tab, setTab] = useState<"cliente" | "proveedor">("cliente");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"todos" | "aldia" | "vencido">("todos");
-  const [selected, setSelected] = useState<Cuenta | null>(null);
+  const { user } = useAuth();
+  const puedeRegistrar = user?.rol === 'administrador';
 
-  const lista = useMemo(() => {
-    return cuentas
-      .filter((c) => c.tipo === tab)
-      .filter((c) => c.nombre.toLowerCase().includes(search.toLowerCase()))
-      .filter((c) => {
-        if (filter === "todos") return true;
-        const venc = estaVencida(c, TODAY);
-        return filter === "vencido" ? venc : !venc;
-      });
-  }, [tab, search, filter]);
+  const { data: cuentasClientes = [], isLoading: loadCli, isError: errCli } = useQuery({
+    queryKey: ['cuentas-clientes'],
+    queryFn: () => api.cuentas.getClientes(),
+  });
 
-  const todasClientes = cuentas.filter((c) => c.tipo === "cliente");
-  const todosProveedores = cuentas.filter((c) => c.tipo === "proveedor");
-  const totalCobrar = todasClientes.reduce((s, c) => s + Math.max(0, calcularSaldo(c)), 0);
-  const totalPagar = todosProveedores.reduce((s, c) => s + Math.max(0, calcularSaldo(c)), 0);
-  const vencidas = cuentas.filter((c) => estaVencida(c, TODAY)).length;
-
-  if (selected) return <Detalle cuenta={selected} onBack={() => setSelected(null)} />;
+  const { data: cuentasProveedores = [], isLoading: loadProv, isError: errProv } = useQuery({
+    queryKey: ['cuentas-proveedores'],
+    queryFn: () => api.cuentas.getProveedores(),
+  });
 
   return (
     <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Cuentas Corrientes</h1>
-          <p className="mt-1 text-muted-foreground">Saldos y vencimientos de clientes y proveedores</p>
+          <p className="mt-1 text-muted-foreground">Seguimiento de deudas y pagos con clientes y proveedores</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <KpiCard title="Total a Cobrar" value={fmt(totalCobrar)} icon={Wallet} variant="success" />
-          <KpiCard title="Total a Pagar" value={fmt(totalPagar)} icon={TrendingDown} variant="warning" />
-          <KpiCard title="Cuentas Vencidas" value={`${vencidas}`} icon={AlertCircle} variant="destructive" />
-        </div>
+        <Tabs defaultValue="clientes">
+          <TabsList className="mb-4">
+            <TabsTrigger value="clientes">Clientes</TabsTrigger>
+            <TabsTrigger value="proveedores">Proveedores</TabsTrigger>
+          </TabsList>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex gap-1 rounded-lg border bg-card p-1">
-            {(["cliente", "proveedor"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
-                className={cn("px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                {t === "cliente" ? "Clientes" : "Proveedores"}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..."
-              className="w-full rounded-lg border bg-card pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-          <div className="flex gap-1 rounded-lg border bg-card p-1">
-            {(["todos", "aldia", "vencido"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={cn("px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                {f === "todos" ? "Todos" : f === "aldia" ? "Al día" : "Vencidos"}
-              </button>
-            ))}
-          </div>
-        </div>
+          <TabsContent value="clientes">
+            <CuentaTab
+              movimientos={cuentasClientes}
+              isLoading={loadCli}
+              isError={errCli}
+              tipo="cliente"
+              puedeRegistrar={puedeRegistrar}
+            />
+          </TabsContent>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left px-6 py-3 font-semibold text-muted-foreground">{tab === "cliente" ? "Cliente" : "Proveedor"}</th>
-                <th className="text-right px-6 py-3 font-semibold text-muted-foreground">Saldo</th>
-                <th className="text-center px-6 py-3 font-semibold text-muted-foreground">Vencimiento</th>
-                <th className="text-center px-6 py-3 font-semibold text-muted-foreground">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((c) => {
-                const saldo = calcularSaldo(c);
-                const venc = estaVencida(c, TODAY);
-                return (
-                  <tr key={c.id} onClick={() => setSelected(c)}
-                    className="border-b last:border-0 cursor-pointer hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-medium text-card-foreground">{c.nombre}</td>
-                    <td className="px-6 py-4 text-right font-mono">{fmt(saldo)}</td>
-                    <td className="px-6 py-4 text-center text-muted-foreground">
-                      {new Date(c.fechaVencimiento).toLocaleDateString("es-AR")}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold",
-                        venc ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success")}>
-                        {venc ? "Vencido" : "Al día"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-              {lista.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-10 text-center text-muted-foreground">Sin resultados</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </AppLayout>
-  );
-};
-
-const Detalle = ({ cuenta, onBack }: { cuenta: Cuenta; onBack: () => void }) => {
-  const saldo = calcularSaldo(cuenta);
-  const venc = estaVencida(cuenta, TODAY);
-
-  let saldoAcum = 0;
-  const movs = [...cuenta.movimientos]
-    .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .map((m) => {
-      saldoAcum += cuenta.tipo === "cliente" ? m.debe - m.haber : m.haber - m.debe;
-      return { ...m, saldo: saldoAcum };
-    });
-
-  return (
-    <AppLayout>
-      <div className="space-y-6">
-        <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Volver
-        </button>
-        <div className="rounded-xl border bg-card p-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{cuenta.tipo === "cliente" ? "Cliente" : "Proveedor"}</p>
-            <h1 className="text-2xl font-display font-bold text-card-foreground">{cuenta.nombre}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Vence: {new Date(cuenta.fechaVencimiento).toLocaleDateString("es-AR")}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Saldo actual</p>
-            <p className="text-3xl font-display font-bold text-card-foreground">{fmt(saldo)}</p>
-            <span className={cn("inline-block mt-1 px-2.5 py-1 rounded-full text-xs font-semibold",
-              venc ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success")}>
-              {venc ? "Vencido" : "Al día"}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left px-6 py-3 font-semibold text-muted-foreground">Fecha</th>
-                <th className="text-left px-6 py-3 font-semibold text-muted-foreground">Comprobante</th>
-                <th className="text-right px-6 py-3 font-semibold text-muted-foreground">Debe</th>
-                <th className="text-right px-6 py-3 font-semibold text-muted-foreground">Haber</th>
-                <th className="text-right px-6 py-3 font-semibold text-muted-foreground">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movs.map((m, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="px-6 py-3 text-muted-foreground">{new Date(m.fecha).toLocaleDateString("es-AR")}</td>
-                  <td className="px-6 py-3 font-medium">{m.comprobante}</td>
-                  <td className="px-6 py-3 text-right font-mono">{m.debe ? fmt(m.debe) : "—"}</td>
-                  <td className="px-6 py-3 text-right font-mono">{m.haber ? fmt(m.haber) : "—"}</td>
-                  <td className="px-6 py-3 text-right font-mono font-semibold">{fmt(m.saldo)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <TabsContent value="proveedores">
+            <CuentaTab
+              movimientos={cuentasProveedores}
+              isLoading={loadProv}
+              isError={errProv}
+              tipo="proveedor"
+              puedeRegistrar={puedeRegistrar}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

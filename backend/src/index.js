@@ -1,8 +1,8 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+const cors    = require('cors');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({
@@ -11,14 +11,19 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// ── Rutas ──────────────────────────────────────────────────────────────────────
+app.use('/api/auth',        require('./routes/auth.routes'));
+app.use('/api/usuarios',    require('./routes/usuarios.routes'));
+app.use('/api/inventario',  require('./routes/inventario.routes'));
+app.use('/api/movimientos', require('./routes/movimientos.routes'));
+app.use('/api/clientes',    require('./routes/clientes.routes'));
+app.use('/api/proveedores', require('./routes/proveedores.routes'));
+app.use('/api/cuentas',     require('./routes/cuentas.routes'));
+app.use('/api/ventas',      require('./routes/ventas.routes'));
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// Routes (se agregan a medida que se crean)
-// app.use('/api/auth', require('./routes/auth.routes'));
-// app.use('/api/products', require('./routes/product.routes'));
-// app.use('/api/sales', require('./routes/sale.routes'));
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);

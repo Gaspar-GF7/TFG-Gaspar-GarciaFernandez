@@ -3,11 +3,13 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index";
-import Stock from "./pages/Stock";
-import Cuentas from "./pages/Cuentas";
+import { AuthProvider } from "@/context/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Index    from "./pages/Index";
+import Stock    from "./pages/Stock";
+import Cuentas  from "./pages/Cuentas";
 import Reportes from "./pages/Reportes";
-import Login from "./pages/Login";
+import Login    from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -18,14 +20,16 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/stock" element={<Stock />} />
-          <Route path="/cuentas" element={<Cuentas />} />
-          <Route path="/reportes" element={<Reportes />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/"         element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/stock"    element={<ProtectedRoute><Stock /></ProtectedRoute>} />
+            <Route path="/cuentas"  element={<ProtectedRoute><Cuentas /></ProtectedRoute>} />
+            <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

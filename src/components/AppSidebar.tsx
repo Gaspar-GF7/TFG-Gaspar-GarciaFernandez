@@ -1,6 +1,8 @@
-import { BarChart3, Package, FileText, Users, Settings, TrendingUp } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { BarChart3, Package, FileText, Users, Settings, TrendingUp, LogOut } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const navItems = [
   { icon: BarChart3, label: "Dashboard", path: "/" },
@@ -12,6 +14,21 @@ const navItems = [
 
 export const AppSidebar = () => {
   const location = useLocation();
+  const navigate  = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Sesión cerrada");
+    navigate("/login");
+  };
+
+  const initials = user?.nombre
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() ?? "??";
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -48,13 +65,20 @@ export const AppSidebar = () => {
 
       <div className="px-4 py-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2">
-          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-xs font-semibold text-primary">JD</span>
+          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-semibold text-primary">{initials}</span>
           </div>
-          <div>
-            <p className="text-sm font-medium text-sidebar-accent-foreground">Juan Díaz</p>
-            <p className="text-xs text-sidebar-foreground">Administrador</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.nombre}</p>
+            <p className="text-xs text-sidebar-foreground capitalize">{user?.rol}</p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="text-sidebar-foreground hover:text-sidebar-accent-foreground transition-colors"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </aside>
