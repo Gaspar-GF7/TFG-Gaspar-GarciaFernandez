@@ -43,6 +43,26 @@ router.get('/', ...todosRoles, async (req, res) => {
   }
 });
 
+// GET /api/ventas/detalles  (todos los detalles con venta+cliente+item — para reportes)
+router.get('/detalles', ...todosRoles, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT dv.id, dv.venta_id, dv.cantidad, dv.precio_unitario,
+              v.fecha, c.nombre AS cliente_nombre,
+              i.nombre AS item_nombre, i.unidad_medida
+       FROM detalle_venta dv
+       JOIN venta v ON v.id = dv.venta_id
+       JOIN cliente c ON c.id = v.cliente_id
+       JOIN item_inventario i ON i.id = dv.item_id
+       ORDER BY v.fecha DESC, dv.id`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
 // GET /api/ventas/:id  (con detalle)
 router.get('/:id', ...todosRoles, async (req, res) => {
   try {

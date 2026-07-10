@@ -65,6 +65,17 @@ export interface Venta {
   usuario_nombre: string;
 }
 
+export interface DetalleVenta {
+  id: number;
+  venta_id: number;
+  cantidad: number;
+  precio_unitario: number;
+  fecha: string;
+  cliente_nombre: string;
+  item_nombre: string;
+  unidad_medida: string | null;
+}
+
 export interface CuentaMovimientoRaw {
   id: number;
   cliente_id?: number;
@@ -160,6 +171,7 @@ export const api = {
       const q = qs.toString();
       return request<Venta[]>(`/ventas${q ? `?${q}` : ''}`);
     },
+    getDetalles: () => request<DetalleVenta[]>('/ventas/detalles'),
   },
 
   cuentas: {
