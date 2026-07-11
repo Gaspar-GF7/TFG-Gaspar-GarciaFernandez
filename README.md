@@ -13,7 +13,7 @@ Este proyecto es una aplicación web desarrollada como trabajo final de grado (T
 - **Reportes y Analítica**: aging de cuentas por cobrar, riesgo de mora, concentración de cartera, rotación de inventario y ventas por mes
 - **Exportación a Excel**: descarga de ventas, stock y cuentas en formato `.xlsx`
 - **Tiempo real**: el dashboard y los reportes se actualizan solos vía WebSockets, sin recargar la página
-- **Autenticación segura**: JWT + contraseñas hasheadas con bcrypt, con roles diferenciados (administrador / operador)
+- **Autenticación segura**: sesiones JWT (expiración de 8h) + contraseñas hasheadas con bcrypt (cost factor 10), con roles diferenciados (administrador / operador) y política de contraseñas fuertes obligatoria
 
 ## 🛠️ Tecnologías Utilizadas
 
@@ -72,8 +72,10 @@ El frontend queda disponible en `http://localhost:5173` y la API en `http://loca
 
 | Rol | Email | Contraseña |
 |---|---|---|
-| Administrador | admin@crunchsnacks.com.ar | admin123 |
-| Operador | operador@crunchsnacks.com.ar | operador123 |
+| Administrador | admin@crunchsnacks.com.ar | Seminario2026! |
+| Operador | operador@crunchsnacks.com.ar | Seminario2026! |
+
+> Toda contraseña (alta o cambio) debe cumplir: 8+ caracteres, al menos una mayúscula, una minúscula, un número y un carácter especial (`@ # $ % ! & *`, etc.). Las sesiones (JWT) expiran a las 8 horas.
 
 ## 🔌 API - Endpoints Principales
 
@@ -180,7 +182,7 @@ Desde `Stock`, registrá entradas/salidas; desde el flujo de ventas, cargá una 
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@crunchsnacks.com.ar","password":"admin123"}'
+  -d '{"email":"admin@crunchsnacks.com.ar","password":"Seminario2026!"}'
 ```
 
 **Listar inventario** (requiere token JWT del login)

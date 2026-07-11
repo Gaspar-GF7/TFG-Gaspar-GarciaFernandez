@@ -1,6 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const pool = require('./db');
+const { SALT_ROUNDS } = require('../utils/passwordPolicy');
 
 async function seed() {
   const client = await pool.connect();
@@ -20,8 +21,10 @@ async function seed() {
     console.log('✓ tablas vaciadas');
 
     // ── Usuarios ──────────────────────────────────────────────────────────────
-    const adminHash = await bcrypt.hash('admin123', 10);
-    const operHash  = await bcrypt.hash('operador123', 10);
+    // Contraseña acorde a la política de seguridad vigente (8+ caracteres,
+    // mayúscula, minúscula, número y carácter especial)
+    const adminHash = await bcrypt.hash('Seminario2026!', SALT_ROUNDS);
+    const operHash  = await bcrypt.hash('Seminario2026!', SALT_ROUNDS);
 
     const { rows: [admin] } = await client.query(
       `INSERT INTO usuario (nombre, email, password_hash, rol)
@@ -185,8 +188,8 @@ async function seed() {
 
     console.log('\nSeed completado exitosamente.');
     console.log('\nCredenciales de acceso:');
-    console.log('  administrador → admin@crunchsnacks.com.ar    / admin123');
-    console.log('  operador      → operador@crunchsnacks.com.ar / operador123');
+    console.log('  administrador → admin@crunchsnacks.com.ar    / Seminario2026!');
+    console.log('  operador      → operador@crunchsnacks.com.ar / Seminario2026!');
   } finally {
     client.release();
     await pool.end();
