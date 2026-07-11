@@ -4,6 +4,10 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
+// Se emite cuando una request autenticada vuelve con 401 (token expirado/invalidado),
+// para que el AuthContext pueda cerrar la sesión y redirigir a /login.
+export const AUTH_EXPIRED_EVENT = 'auth:expired';
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
@@ -15,7 +19,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'Error del servidor');
+  if (!res.ok) {
+    // Solo forzamos el logout si la request iba autenticada: un 401 en /auth/login
+    // es "credenciales incorrectas", no una sesión expirada.
+    if (res.status === 401 && token) {
+      localStorage.removeItem('token');
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
+    throw new Error(data.error ?? 'Error del servidor');
+  }
   return data as T;
 }
 

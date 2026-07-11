@@ -1,8 +1,8 @@
 const router  = require('express').Router();
 const bcrypt  = require('bcryptjs');
-const jwt     = require('jsonwebtoken');
 const pool    = require('../config/db');
 const auth    = require('../middleware/auth');
+const { signToken } = require('../utils/token');
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -19,11 +19,7 @@ router.post('/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
-    const token = jwt.sign(
-      { id: user.id, rol: user.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = signToken(user);
     res.json({
       token,
       user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },

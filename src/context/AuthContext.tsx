@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, User } from '@/lib/api';
+import { toast } from 'sonner';
+import { api, AUTH_EXPIRED_EVENT, User } from '@/lib/api';
 import { disconnectSocket } from '@/hooks/useSocket';
 
 interface AuthContextType {
@@ -38,6 +39,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     disconnectSocket();
   }
+
+  // lib/api.ts ya limpió el token de localStorage al recibir el 401;
+  // acá solo actualizamos el estado para que ProtectedRoute redirija a /login.
+  useEffect(() => {
+    function handleAuthExpired() {
+      setUser(null);
+      disconnectSocket();
+      toast.error('Tu sesión expiró. Iniciá sesión nuevamente.');
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>

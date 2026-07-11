@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool   = require('../config/db');
 const auth   = require('../middleware/auth');
 const roles  = require('../middleware/roles');
+const { validatePassword, SALT_ROUNDS } = require('../utils/passwordPolicy');
 
 const soloAdmin = [auth, roles('administrador')];
 
@@ -43,8 +44,15 @@ router.post('/', ...soloAdmin, async (req, res) => {
   if (!['administrador', 'operador'].includes(rol)) {
     return res.status(400).json({ error: 'rol debe ser administrador u operador' });
   }
+  const { valid, errors: passwordErrors } = validatePassword(password);
+  if (!valid) {
+    return res.status(400).json({
+      error: 'La contraseña no cumple los requisitos de seguridad',
+      detalles: passwordErrors,
+    });
+  }
   try {
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
     const { rows } = await pool.query(
       `INSERT INTO usuario (nombre, email, password_hash, rol)
        VALUES ($1, $2, $3, $4)
@@ -111,11 +119,15 @@ router.patch('/:id/activo', ...soloAdmin, async (req, res) => {
 // PATCH /api/usuarios/:id/password
 router.patch('/:id/password', ...soloAdmin, async (req, res) => {
   const { password } = req.body;
-  if (!password || password.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  const { valid, errors: passwordErrors } = validatePassword(password);
+  if (!valid) {
+    return res.status(400).json({
+      error: 'La contraseña no cumple los requisitos de seguridad',
+      detalles: passwordErrors,
+    });
   }
   try {
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
     const { rows } = await pool.query(
       `UPDATE usuario SET password_hash=$1 WHERE id=$2 RETURNING id`,
       [hash, req.params.id]
