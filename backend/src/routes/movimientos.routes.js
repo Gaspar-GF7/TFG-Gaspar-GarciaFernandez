@@ -68,7 +68,7 @@ router.get('/:id', ...todosRoles, async (req, res) => {
 
 // POST /api/movimientos  (ambos roles)
 router.post('/', ...todosRoles, async (req, res) => {
-  const { item_id, tipo, cantidad, observacion } = req.body;
+  const { item_id, tipo, cantidad, fecha, observacion } = req.body;
   if (!item_id || !tipo || !cantidad) {
     return res.status(400).json({ error: 'item_id, tipo y cantidad son requeridos' });
   }
@@ -110,10 +110,10 @@ router.post('/', ...todosRoles, async (req, res) => {
     );
 
     const { rows } = await client.query(
-      `INSERT INTO movimiento_stock (item_id, usuario_id, tipo, cantidad, observacion)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO movimiento_stock (item_id, usuario_id, tipo, cantidad, fecha, observacion)
+       VALUES ($1, $2, $3, $4, COALESCE($5, now()), $6)
        RETURNING *`,
-      [item_id, req.user.id, tipo, cant, observacion ?? null]
+      [item_id, req.user.id, tipo, cant, fecha || null, observacion ?? null]
     );
 
     await client.query('COMMIT');

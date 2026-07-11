@@ -1,11 +1,43 @@
-import { Package, AlertTriangle, AlertCircle, Search, XCircle } from "lucide-react";
+import { Package, AlertTriangle, AlertCircle, Search, XCircle, PlusCircle } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
 import { api, calcEstado } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useSocket } from "@/hooks/useSocket";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 const estadoBadge = {
   ok:      "bg-success/10 text-success",
@@ -36,10 +68,199 @@ function SkeletonRow() {
   );
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const movimientoSchema = z.object({
+  item_id: z.string().min(1, "Seleccioná un ítem"),
+  tipo: z.enum(["entrada", "salida"], { required_error: "Seleccioná el tipo de movimiento" }),
+  cantidad: z
+    .string()
+    .min(1, "La cantidad es obligatoria")
+    .refine((v) => !isNaN(Number(v)), "Ingresá un número válido")
+    .refine((v) => Number(v) > 0, "La cantidad debe ser mayor a 0"),
+  fecha: z.string().min(1, "La fecha es obligatoria"),
+  observacion: z.string().optional(),
+});
+
+type MovimientoFormValues = z.infer<typeof movimientoSchema>;
+
+const movimientoDefaults: MovimientoFormValues = {
+  item_id: "",
+  tipo: "entrada",
+  cantidad: "",
+  fecha: todayISO(),
+  observacion: "",
+};
+
+interface RegistrarMovimientoDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  items: { id: number; producto: string }[];
+}
+
+function RegistrarMovimientoDialog({ open, onOpenChange, items }: RegistrarMovimientoDialogProps) {
+  const queryClient = useQueryClient();
+
+  const form = useForm<MovimientoFormValues>({
+    resolver: zodResolver(movimientoSchema),
+    defaultValues: movimientoDefaults,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (values: MovimientoFormValues) =>
+      api.movimientos.create({
+        item_id: Number(values.item_id),
+        tipo: values.tipo,
+        cantidad: Number(values.cantidad),
+        fecha: values.fecha,
+        observacion: values.observacion?.trim() || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventario"] });
+      toast.success("Movimiento registrado correctamente");
+      handleOpenChange(false);
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Error al registrar el movimiento");
+    },
+  });
+
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      form.reset({ ...movimientoDefaults, fecha: todayISO() });
+    }
+    onOpenChange(next);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !mutation.isPending && handleOpenChange(next)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Registrar movimiento</DialogTitle>
+          <DialogDescription>Registrá una entrada o salida de stock para un ítem del inventario.</DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="item_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ítem *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccioná un producto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {items.map((i) => (
+                        <SelectItem key={i.id} value={String(i.id)}>
+                          {i.producto}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="tipo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de movimiento *</FormLabel>
+                  <FormControl>
+                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-6">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="entrada" id="tipo-entrada" />
+                        <Label htmlFor="tipo-entrada" className="font-normal cursor-pointer">Entrada</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="salida" id="tipo-salida" />
+                        <Label htmlFor="tipo-salida" className="font-normal cursor-pointer">Salida</Label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="cantidad"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cantidad *</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0.01" step="0.01" placeholder="0" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fecha"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha *</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="observacion"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Observación <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Ej: Ingreso por compra a proveedor" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={mutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? "Guardando..." : "Guardar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const Stock = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const filtroInicial = searchParams.get("filtro") as Filtro | null;
   const [filter, setFilter] = useState<Filtro>(
@@ -88,12 +309,18 @@ const Stock = () => {
             <h1 className="text-3xl font-display font-bold text-foreground">Stock</h1>
             <p className="mt-1 text-muted-foreground">Gestión de inventario y alertas</p>
           </div>
-          {!isLoading && alertCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-4 py-2">
-              <AlertCircle className="h-4 w-4 text-destructive" />
-              <span className="text-sm font-medium text-destructive">{alertCount} productos con stock bajo</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {!isLoading && alertCount > 0 && (
+              <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-4 py-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <span className="text-sm font-medium text-destructive">{alertCount} productos con stock bajo</span>
+              </div>
+            )}
+            <Button onClick={() => setDialogOpen(true)}>
+              <PlusCircle className="h-4 w-4" />
+              Registrar movimiento
+            </Button>
+          </div>
         </div>
 
         {/* Error */}
@@ -196,6 +423,12 @@ const Stock = () => {
           </table>
         </div>
       </div>
+
+      <RegistrarMovimientoDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        items={items.map((i) => ({ id: i.id, producto: i.producto }))}
+      />
     </AppLayout>
   );
 };

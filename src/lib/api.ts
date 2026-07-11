@@ -172,6 +172,16 @@ export const api = {
       const q = qs.toString();
       return request<MovimientoStock[]>(`/movimientos${q ? `?${q}` : ''}`);
     },
+    create: (body: {
+      item_id: number;
+      tipo: 'entrada' | 'salida';
+      cantidad: number;
+      fecha?: string;
+      observacion?: string;
+    }) => request<MovimientoStock & { stock_nuevo: number }>('/movimientos', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   },
 
   ventas: {
