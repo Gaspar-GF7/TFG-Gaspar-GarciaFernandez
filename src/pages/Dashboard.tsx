@@ -1,4 +1,4 @@
-import { DollarSign, ShoppingCart, Package, AlertTriangle, XCircle } from "lucide-react";
+import { DollarSign, ShoppingCart, Package, AlertTriangle, XCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
@@ -109,6 +109,28 @@ const Dashboard = () => {
 
   const totalSalidas = Object.values(salidasPorItem).reduce((s, v) => s + v, 0);
 
+  // Comparación de salidas por producto contra el mes anterior
+  const inicioMesAnt = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const mesAntStr = inicioMesAnt.toISOString().slice(0, 7);
+
+  const salidasPorItemEnMes = (mesTarget: string) =>
+    movimientos
+      .filter((m) => m.tipo === 'salida' && m.fecha.slice(0, 7) === mesTarget)
+      .reduce<Record<string, number>>((acc, m) => {
+        acc[m.item_nombre] = (acc[m.item_nombre] ?? 0) + Number(m.cantidad);
+        return acc;
+      }, {});
+
+  const salidasMesActual = salidasPorItemEnMes(mesStr);
+  const salidasMesAnterior = salidasPorItemEnMes(mesAntStr);
+
+  const calcVariacionProducto = (nombre: string): number | null => {
+    const actual = salidasMesActual[nombre] ?? 0;
+    const anterior = salidasMesAnterior[nombre] ?? 0;
+    if (anterior === 0) return null;
+    return ((actual - anterior) / anterior) * 100;
+  };
+
   const topProducts = Object.entries(salidasPorItem)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
@@ -116,6 +138,7 @@ const Dashboard = () => {
       name,
       ventas: qty,
       porcentaje: totalSalidas > 0 ? Math.round((qty / totalSalidas) * 100) : 0,
+      variacion: calcVariacionProducto(name),
     }));
 
   return (
@@ -141,13 +164,13 @@ const Dashboard = () => {
             <>
               <KpiCard title="Ventas Hoy" value={formatCurrency(ventasHoy)} icon={DollarSign} />
               <KpiCard
-                title="Ventas del Mes"
+                title="Ingresos del Mes"
                 value={formatCurrency(ventasMes)}
                 change={ventasMesCambio ?? undefined}
                 icon={ShoppingCart}
               />
               <KpiCard
-                title="Ventas del Mes"
+                title="Transacciones del Mes"
                 value={`${cantVentasMes} ventas`}
                 icon={Package}
                 variant="success"
@@ -211,7 +234,23 @@ const Dashboard = () => {
                   <div key={i} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-card-foreground font-medium truncate mr-2">{product.name}</span>
-                      <span className="text-muted-foreground shrink-0">{product.porcentaje}%</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-muted-foreground">{product.porcentaje}%</span>
+                        {product.variacion !== null && (
+                          <span
+                            className={`inline-flex items-center gap-0.5 text-xs font-medium ${
+                              product.variacion >= 0 ? "text-success" : "text-destructive"
+                            }`}
+                          >
+                            {product.variacion >= 0 ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )}
+                            {Math.abs(Math.round(product.variacion))}%
+                          </span>
+                        )}
+                      </span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div
