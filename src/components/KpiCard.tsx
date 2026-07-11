@@ -7,6 +7,7 @@ interface KpiCardProps {
   change?: number;
   icon: LucideIcon;
   variant?: "default" | "success" | "warning" | "destructive";
+  onClick?: () => void;
 }
 
 const variantStyles = {
@@ -23,9 +24,28 @@ const iconVariantStyles = {
   destructive: "bg-destructive/10 text-destructive",
 };
 
-export const KpiCard = ({ title, value, change, icon: Icon, variant = "default" }: KpiCardProps) => {
+export const KpiCard = ({ title, value, change, icon: Icon, variant = "default", onClick }: KpiCardProps) => {
   return (
-    <div className={cn("rounded-xl border p-6 transition-shadow hover:shadow-lg", variantStyles[variant])}>
+    <div
+      className={cn(
+        "rounded-xl border p-6 transition-shadow hover:shadow-lg",
+        variantStyles[variant],
+        onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

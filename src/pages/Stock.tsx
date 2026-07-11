@@ -1,5 +1,6 @@
 import { Package, AlertTriangle, AlertCircle, Search, XCircle } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { api, calcEstado } from "@/lib/api";
@@ -13,6 +14,15 @@ const estadoBadge = {
 };
 
 const estadoLabel = { ok: "Normal", bajo: "Bajo", critico: "Crítico" };
+
+type Filtro = "todos" | "alerta" | "bajo" | "critico";
+const FILTROS_VALIDOS: Filtro[] = ["todos", "alerta", "bajo", "critico"];
+const filtroLabel: Record<Filtro, string> = {
+  todos: "Todos",
+  alerta: "⚠ Alertas",
+  bajo: "⚠ Bajo",
+  critico: "🔴 Crítico",
+};
 
 function SkeletonRow() {
   return (
@@ -29,7 +39,17 @@ function SkeletonRow() {
 const Stock = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"todos" | "bajo" | "critico">("todos");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const filtroInicial = searchParams.get("filtro") as Filtro | null;
+  const [filter, setFilter] = useState<Filtro>(
+    filtroInicial && FILTROS_VALIDOS.includes(filtroInicial) ? filtroInicial : "todos"
+  );
+
+  const handleFilterChange = (f: Filtro) => {
+    setFilter(f);
+    setSearchParams(f === "todos" ? {} : { filtro: f });
+  };
 
   useSocket({
     'stock:actualizado': () => queryClient.invalidateQueries({ queryKey: ['inventario'] }),
@@ -54,6 +74,7 @@ const Stock = () => {
   const filtered = items.filter((item) => {
     const matchSearch = item.producto.toLowerCase().includes(search.toLowerCase());
     if (filter === "todos") return matchSearch;
+    if (filter === "alerta") return matchSearch && item.estado !== "ok";
     return matchSearch && item.estado === filter;
   });
 
@@ -98,16 +119,16 @@ const Stock = () => {
             />
           </div>
           <div className="flex gap-1 rounded-lg border bg-card p-1">
-            {(["todos", "bajo", "critico"] as const).map((f) => (
+            {FILTROS_VALIDOS.map((f) => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => handleFilterChange(f)}
                 className={cn(
                   "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
                   filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {f === "todos" ? "Todos" : f === "bajo" ? "⚠ Bajo" : "🔴 Crítico"}
+                {filtroLabel[f]}
               </button>
             ))}
           </div>

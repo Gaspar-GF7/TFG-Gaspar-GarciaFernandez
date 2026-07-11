@@ -1,6 +1,7 @@
 import { DollarSign, ShoppingCart, Package, AlertTriangle, XCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { KpiCard } from "@/components/KpiCard";
 import { api, calcEstado } from "@/lib/api";
@@ -23,6 +24,7 @@ function KpiSkeleton() {
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   useSocket({
     'venta:nueva': () => {
@@ -107,7 +109,13 @@ const Dashboard = () => {
       return acc;
     }, {});
 
-  const totalSalidas = Object.values(salidasPorItem).reduce((s, v) => s + v, 0);
+  // Productos terminados: se listan todos aunque todavía no tengan salidas registradas
+  const productosTerminados = inventario.filter((i) => i.categoria === 'Producto terminado');
+
+  const totalSalidas = productosTerminados.reduce(
+    (s, i) => s + (salidasPorItem[i.nombre] ?? 0),
+    0
+  );
 
   // Comparación de salidas por producto contra el mes anterior
   const inicioMesAnt = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
@@ -131,15 +139,18 @@ const Dashboard = () => {
     return ((actual - anterior) / anterior) * 100;
   };
 
-  const topProducts = Object.entries(salidasPorItem)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, qty]) => ({
-      name,
-      ventas: qty,
-      porcentaje: totalSalidas > 0 ? Math.round((qty / totalSalidas) * 100) : 0,
-      variacion: calcVariacionProducto(name),
-    }));
+  const topProducts = productosTerminados
+    .map((item) => {
+      const qty = salidasPorItem[item.nombre] ?? 0;
+      return {
+        name: item.nombre,
+        ventas: qty,
+        porcentaje: totalSalidas > 0 ? Math.round((qty / totalSalidas) * 100) : 0,
+        variacion: calcVariacionProducto(item.nombre),
+      };
+    })
+    .sort((a, b) => b.ventas - a.ventas)
+    .slice(0, 5);
 
   return (
     <AppLayout>
@@ -180,6 +191,7 @@ const Dashboard = () => {
                 value={`${alertCount} items`}
                 icon={AlertTriangle}
                 variant={criticoCount > 0 ? "destructive" : alertCount > 0 ? "warning" : "default"}
+                onClick={() => navigate('/stock?filtro=alerta')}
               />
             </>
           )}
