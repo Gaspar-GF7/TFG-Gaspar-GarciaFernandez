@@ -77,6 +77,20 @@ export interface Venta {
   usuario_nombre: string;
 }
 
+export interface VentaDetalleItem {
+  id: number;
+  venta_id: number;
+  item_id: number;
+  cantidad: number;
+  precio_unitario: number;
+  item_nombre: string;
+  unidad_medida: string | null;
+}
+
+export interface VentaConDetalle extends Venta {
+  detalles: VentaDetalleItem[];
+}
+
 export interface DetalleVenta {
   id: number;
   venta_id: number;
@@ -86,6 +100,14 @@ export interface DetalleVenta {
   cliente_nombre: string;
   item_nombre: string;
   unidad_medida: string | null;
+}
+
+export interface Cliente {
+  id: number;
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  direccion: string | null;
 }
 
 export interface CuentaMovimientoRaw {
@@ -193,7 +215,24 @@ export const api = {
       const q = qs.toString();
       return request<Venta[]>(`/ventas${q ? `?${q}` : ''}`);
     },
+    getById: (id: number) => request<VentaConDetalle>(`/ventas/${id}`),
     getDetalles: () => request<DetalleVenta[]>('/ventas/detalles'),
+    create: (body: {
+      cliente_id: number;
+      items: { item_id: number; cantidad: number; precio_unitario: number }[];
+    }) => request<VentaConDetalle>('/ventas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  },
+
+  clientes: {
+    getAll: (params?: { search?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.search) qs.set('search', params.search);
+      const q = qs.toString();
+      return request<Cliente[]>(`/clientes${q ? `?${q}` : ''}`);
+    },
   },
 
   cuentas: {

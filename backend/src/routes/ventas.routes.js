@@ -125,12 +125,18 @@ router.post('/', ...todosRoles, async (req, res) => {
 
     for (const it of items) {
       const { rows } = await client.query(
-        'SELECT id, nombre, stock_actual FROM item_inventario WHERE id=$1 FOR UPDATE',
+        'SELECT id, nombre, categoria, stock_actual FROM item_inventario WHERE id=$1 FOR UPDATE',
         [it.item_id]
       );
       if (!rows[0]) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: `Item ${it.item_id} no encontrado` });
+      }
+      if (rows[0].categoria?.toLowerCase() !== 'producto terminado') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `"${rows[0].nombre}" no es un producto terminado y no puede venderse`,
+        });
       }
       const stockDisponible = parseFloat(rows[0].stock_actual);
       const cant = parseFloat(it.cantidad);
@@ -176,6 +182,21 @@ router.post('/', ...todosRoles, async (req, res) => {
       );
     }
 
+    // Factura automática en la cuenta corriente del cliente
+    const { rows: prevSaldo } = await client.query(
+      `SELECT saldo_actual FROM cuenta_corriente_cliente
+       WHERE cliente_id=$1 ORDER BY fecha DESC, id DESC LIMIT 1 FOR UPDATE`,
+      [cliente_id]
+    );
+    const saldoPrev  = prevSaldo[0] ? parseFloat(prevSaldo[0].saldo_actual) : 0;
+    const saldoNuevo = saldoPrev + totalMonto;
+
+    await client.query(
+      `INSERT INTO cuenta_corriente_cliente (cliente_id, tipo, monto, saldo_actual, observacion)
+       VALUES ($1, 'factura', $2, $3, $4)`,
+      [cliente_id, totalMonto, saldoNuevo, `Venta #${venta.id}`]
+    );
+
     await client.query('COMMIT');
     res.status(201).json({ ...venta, detalles });
     getIo()?.emit('venta:nueva', {
@@ -186,6 +207,11 @@ router.post('/', ...todosRoles, async (req, res) => {
         item_id: Number(it.item_id),
         stock_actual: it.stockDisponible - it.cant,
       })),
+    });
+    getIo()?.emit('cuenta:actualizada', {
+      tipo: 'cliente',
+      cliente_id: Number(cliente_id),
+      saldo_actual: saldoNuevo,
     });
   } catch (err) {
     await client.query('ROLLBACK');

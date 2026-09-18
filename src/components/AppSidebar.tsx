@@ -1,14 +1,15 @@
-import { BarChart3, Package, FileText, Users, TrendingUp, LogOut } from "lucide-react";
+import { BarChart3, Package, ShoppingCart, FileText, Users, TrendingUp, LogOut } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const navItems = [
-  { icon: BarChart3, label: "Dashboard",  path: "/",         adminOnly: false },
-  { icon: Package,   label: "Stock",      path: "/stock",    adminOnly: false },
-  { icon: Users,     label: "Cuentas",    path: "/cuentas",  adminOnly: false },
-  { icon: FileText,  label: "Reportes",   path: "/reportes", adminOnly: true  },
+  { icon: BarChart3,    label: "Dashboard", path: "/",         adminOnly: false },
+  { icon: Package,      label: "Stock",     path: "/stock",    adminOnly: false },
+  { icon: ShoppingCart, label: "Ventas",    path: "/ventas",   adminOnly: false },
+  { icon: Users,        label: "Cuentas",   path: "/cuentas",  adminOnly: false },
+  { icon: FileText,     label: "Reportes",  path: "/reportes", adminOnly: true  },
 ];
 
 export const AppSidebar = () => {
