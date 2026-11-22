@@ -66,7 +66,7 @@ cd ..
 npm run dev
 ```
 
-El frontend queda disponible en `http://localhost:5173` y la API en `http://localhost:3000`.
+El frontend queda disponible en `http://localhost:8080` y la API en `http://localhost:3000`.
 
 **Credenciales de prueba** (creadas por `db:seed`):
 
